@@ -785,7 +785,9 @@ function vProg(){
  ${location.protocol==='file:'?'<p class="sema warn">Per collegare Strava l\'app deve essere pubblicata (per esempio su GitHub Pages o Netlify) o aperta da un server locale. Intanto puoi usare l\'importazione del file qui sotto.</p>':''}
  <details><summary>Come collegarlo (5 minuti)</summary><ol><li>Apri <b>strava.com/settings/api</b> e crea un'applicazione: nome a piacere, categoria "Training", sito web l'indirizzo di questa app.</li><li>In <b>Authorization Callback Domain</b> scrivi <code>${esc(location.hostname||'il dominio dell\'app')}</code></li><li>Copia qui sotto Client ID e Client Secret e premi Collega.</li></ol></details>
  <form data-f="st" data-k="st"><div class="grid2"><label>Client ID<input name="cid" inputmode="numeric" value="${esc(fv('st','cid',st.cid||''))}" autocomplete="off"></label><label>Client Secret<input name="secret" type="password" value="${esc(fv('st','secret',st.secret||''))}" autocomplete="off"></label></div>
- <div class="btns"><button class="btn red" type="submit">Collega Strava</button></div></form><p class="small">Le credenziali restano solo su questo dispositivo e servono solo a parlare con Strava.</p>`}
+ <div class="btns"><button class="btn red" type="submit">Collega Strava</button></div></form>
+ ${STCODE?`<div class="sema warn"><b>Quasi fatto.</b> Strava ti ha riportato nel browser e non nell'app sulla schermata Home (sull'iPhone hanno memorie separate). Copia questo codice, apri <b>Dada Run dalla schermata Home</b> → Progressi → "Hai un codice da Strava?" e incollalo entro qualche minuto.<div class="btns"><code style="font-size:16px">${esc(STCODE)}</code><button type="button" data-st="copy">Copia codice</button></div></div>`:''}
+ <details${st.cid?' open':''}><summary>Hai un codice da Strava?</summary><p class="small">Serve solo se, dopo l'autorizzazione, Strava ti ha riportato in Safari invece che nell'app. Inserisci prima Client ID e Secret qui sopra.</p><div class="grid2"><label>Codice<input id="stcode" autocomplete="off" autocapitalize="off" spellcheck="false"></label></div><div class="btns"><button type="button" class="btn red" data-st="code">Usa il codice</button></div></details><p class="small">Le credenziali restano solo su questo dispositivo e servono solo a parlare con Strava.</p>`}
  <h3 class="sub" id="fitness">Apple Fitness (iPhone e Apple Watch)</h3>
  <p class="small">Le web app non possono leggere direttamente l'app Salute: Apple lo permette solo alle app dell'App Store. La strada è far passare gli allenamenti da Strava, che li legge da Salute in automatico:</p>
  <ol class="small"><li>Installa l'app <b>Strava</b> sull'iPhone e accedi.</li><li>In Strava: <b>Tu</b> (o il profilo) → ingranaggio <b>Impostazioni</b> → <b>Applicazioni, servizi e dispositivi</b> → <b>Salute</b> (Apple Health) → <b>Collega</b>, poi consenti la lettura degli <b>allenamenti</b>. I nomi delle voci possono cambiare un po' con le versioni.</li><li>Da quel momento ogni corsa registrata con l'app <b>Allenamento</b> dell'Apple Watch o dell'iPhone finisce su Strava da sola.</li><li>Qui in Dada Run collega Strava (sopra): le corse arrivano a ogni apertura dell'app.</li></ol>
@@ -921,7 +923,7 @@ function importHevy(text){const rows=csvRows(text.replace(/^﻿/,''));if(rows.le
   if(!gym[id])ns++;const f=info(w.date);gym[id]={date:w.date,tpl:tid,name:w.title.slice(0,40),w:inPlan(f)?f.w:null,ex,note:String(w.note||'').slice(0,600),src:'hevy',ts:Date.now()};seen.add(id)}
  S.templates=tpl;S.gym=gym;persist('templates');persist('gym');
  return {tot:seen.size,ns,made,from:ws[0].date,to:newest}}
-let HEVYMSG='';
+let HEVYMSG='',STCODE='';
 /* ---------- Backup ---------- */
 function exportBackup(){const data={};for(const c of COLS)data[c]=S[c];data.meta=S.cps;
  const b=new Blob([JSON.stringify({app:'roma27',v:1,exported:new Date().toISOString(),data},null,1)],{type:'application/json'});
@@ -961,6 +963,12 @@ view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data
  if(b.dataset.bk==='export'){exportBackup();return}
  if(b.dataset.st){const a=b.dataset.st;
   if(a==='sync'||a==='all')await stSync(a==='all');
+  else if(a==='copy'){try{await navigator.clipboard.writeText(STCODE);toast('Codice copiato')}catch(e){toast('Tieni premuto sul codice per copiarlo')}}
+  else if(a==='code'){const c=(document.getElementById('stcode')||{}).value?.trim(),f=document.querySelector('form[data-f=st]');
+   const cid=f&&f.elements.namedItem('cid').value.trim(),secret=f&&f.elements.namedItem('secret').value.trim();if(cid&&secret)stSet({cid,secret});
+   if(!stGet().cid||!stGet().secret){toast('Inserisci prima Client ID e Client Secret');return}if(!c){toast('Incolla il codice');return}
+   try{await stToken({code:c,grant_type:'authorization_code'});STCODE='';toast('Strava collegato');note('');await stSync(false)}
+   catch(e){note(e instanceof TypeError?'Strava non raggiungibile: controlla la connessione e riprova.':String(e.message||e)+' (il codice vale una sola volta e scade dopo pochi minuti: se serve, ripremi Collega Strava)')}}
   else if(a==='off'){if(delArm!=='strava'){delArm='strava';b.textContent='Conferma: scollega';return}delArm=null;const s=stGet();lsSet('strava',{cid:s.cid,secret:s.secret});render();toast('Strava scollegato: le corse importate restano')}
   return}
  if(b.dataset.t){const a=b.dataset.t,id=b.dataset.id;
@@ -1040,6 +1048,7 @@ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catc
  if(q.get('state')==='roma27'&&(q.get('code')||q.get('error'))){history.replaceState(null,'',location.pathname+'#progressi');render();
   if(q.get('error')){note('Collegamento a Strava annullato.');return}
   if(!/activity:read/.test(q.get('scope')||'')){note('Per importare le corse serve il permesso di lettura delle attività: ricollega Strava lasciando la spunta.');return}
+  if(!stGet().cid){STCODE=q.get('code');render();setTimeout(()=>{const t=document.getElementById('dati');if(t)t.scrollIntoView({block:'start'})},60);return}
   try{await stToken({code:q.get('code'),grant_type:'authorization_code'});toast('Strava collegato');await stSync(false)}
   catch(e){note(e instanceof TypeError?'Strava non raggiungibile: controlla la connessione e riprova.':String(e.message||e))}return}
  const s=stGet();if(s.refresh&&(!s.last||Date.now()/1000-s.last>3*3600))stSync(false)})();
