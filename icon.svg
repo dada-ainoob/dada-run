@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#d4361c"/>
+  <circle cx="92" cy="92" r="20" fill="#000" fill-opacity=".28"/>
+  <circle cx="420" cy="92" r="20" fill="#000" fill-opacity=".28"/>
+  <circle cx="92" cy="420" r="20" fill="#000" fill-opacity=".28"/>
+  <circle cx="420" cy="420" r="20" fill="#000" fill-opacity=".28"/>
+  <g fill="#fff" font-family="'Helvetica Neue','Arial Narrow',Arial,sans-serif" font-stretch="condensed" font-weight="800" text-anchor="middle">
+    <text x="256" y="246" font-size="150" letter-spacing="-4">DADA</text>
+    <text x="256" y="368" font-size="150" letter-spacing="-4">RUN</text>
+  </g>
+  <rect x="146" y="392" width="220" height="12" rx="6" fill="#fff" fill-opacity=".9"/>
+</svg>

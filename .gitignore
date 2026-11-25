@@ -1,0 +1,11 @@
+# Si pubblicano solo i file dell'app: tutto il resto (note, documenti, CLAUDE.md) resta sul computer
+*
+!.gitignore
+!index.html
+!manifest.json
+!sw.js
+!icon.svg
+!icon-192.png
+!icon-512.png
+!apple-touch-icon.png
+!.nojekyll
