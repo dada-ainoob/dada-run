@@ -149,6 +149,18 @@ code{font-size:14px;background:var(--bg);padding:1px 6px;border-radius:6px;word-
 .st .how,.sub2 .how{display:block;font-size:14px;line-height:1.45;margin-top:6px;color:var(--ink);opacity:.85}
 .sub2{margin:0 14px 12px 58px;padding:8px 0 0 12px;border-left:3px solid var(--zc)}.sub2 b{display:block;font-size:15px}.sub2 .p{display:block;font-size:14px;color:var(--mute)}
 .gd .how{font-size:16px;line-height:1.45;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.exv{font-size:14px;color:var(--gym);font-weight:600;margin:8px 0 0}.exv:empty{display:none}
+.hist{margin:8px 0 0;border-top:0;padding-top:0}.hist summary{font-size:14px;color:var(--gym)}
+table.mini{font-size:14px;margin-top:6px}table.mini td,table.mini th{white-space:normal}
+.volbox{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;background:var(--gymbg);border-radius:12px;padding:12px 14px;margin:14px 0}.volbox b{font:700 34px/1 "Barlow Condensed",sans-serif;color:var(--gym)}.volbox span{font-size:14px;color:var(--mute)}
+.tro{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.tro .box{background:var(--bib);color:#fff;border-radius:22px;max-width:420px;width:100%;padding:26px 20px 20px;text-align:center;
+background-image:radial-gradient(circle at 16px 16px,rgba(0,0,0,.28) 4px,transparent 5px),radial-gradient(circle at calc(100% - 16px) 16px,rgba(0,0,0,.28) 4px,transparent 5px),radial-gradient(circle at 16px calc(100% - 16px),rgba(0,0,0,.28) 4px,transparent 5px),radial-gradient(circle at calc(100% - 16px) calc(100% - 16px),rgba(0,0,0,.28) 4px,transparent 5px)}
+.tro .emo{font-size:120px;line-height:1.15;animation:pop .7s cubic-bezier(.2,1.4,.4,1)}.tro .vol{font:700 64px/1 "Barlow Condensed",sans-serif}
+.tro .stt{font-size:15px;opacity:.9;margin:12px 0}.tro .btns{justify-content:center}
+.tro .btn.w{background:#fff;color:#a92b16;border-color:#fff;font-weight:700}.tro .btn.ghostw{background:transparent;color:#fff;border-color:rgba(255,255,255,.7)}
+@keyframes pop{0%{transform:scale(.2) rotate(-12deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@media(prefers-reduced-motion:reduce){.tro .emo{animation:none}}
 .btn.go{width:100%;min-height:56px;font-size:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:10px}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;margin:6px 0 10px}
 .week button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;border:0;background:none;min-height:64px}
@@ -498,19 +510,97 @@ function resCard(rs,f){
  <label>Note<textarea name="note" rows="2">${esc(fv(k,'note',sv.note||''))}</textarea></label>
  <div class="row"><span class="small">${sv.date?'Circuito salvato':''}</span><button class="btn okb" type="submit">${sv.date?'Aggiorna':'Salva circuito'}</button></div></form></section>`}
 
+/* ---------- Palestra: volume (kg × ripetizioni), storico per esercizio ---------- */
+const setsVol=sets=>(sets||[]).reduce((s,x)=>s+(+x[0]||0)*(+x[1]||0),0);
+const sesVol=g=>Object.values(g.ex||{}).reduce((s,x)=>s+setsVol(x),0);
+const kgFmt=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const histFor=(k,before,n=6)=>Object.values(S.gym).filter(g=>g.date<before&&g.ex&&g.ex[k]&&g.ex[k].length).sort((a,b)=>a.date<b.date?1:-1).slice(0,n);
+const lastTpl=(tid,before)=>Object.values(S.gym).filter(g=>g.tpl===tid&&g.date<before).sort((a,b)=>a.date<b.date?1:-1)[0];
+const pct=(a,b)=>b?(a>=b?'+':'−')+fnum(Math.abs(a-b)/b*100)+'%':'';
+/* serie lette dal modulo (anche prima di salvare) */
+function formSets(f,t){const out={};for(const x of t.ex||[]){const ss=[];for(let i=0;i<30;i++){const ki=f.elements.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(f.elements.namedItem('r-'+x.k+'-'+i).value);if(r!=null)ss.push([num(ki.value)??0,r])}if(ss.length)out[x.k]=ss}return out}
+function volLine(cur,prev,prevDate){return `<b>${kgFmt(cur)} kg</b><span>volume totale${prev?` · la scorsa volta (${short(prevDate)}) ${kgFmt(prev)} kg${cur?' · '+pct(cur,prev):''}`:''}</span>`}
+function updVol(f){const t=S.templates[f.dataset.tid];if(!t)return;const ex=formSets(f,t),lt=lastTpl(f.dataset.tid,sel);let tot=0;
+ for(const x of t.ex||[]){const v=setsVol(ex[x.k]),el=f.querySelector(`[data-exv="${CSS.escape(x.k)}"]`),ls=lastFor(x.k,sel),lv=ls?setsVol(ls.ex[x.k]):0;tot+=v;
+  if(el)el.textContent=v?`Volume ${kgFmt(v)} kg${lv?' · scorsa '+kgFmt(lv)+' kg ('+pct(v,lv)+')':''}`:lv?`Volume scorsa volta: ${kgFmt(lv)} kg`:''}
+ const vb=f.querySelector('.volbox');if(vb)vb.innerHTML=volLine(tot,lt?sesVol(lt):0,lt&&lt.date)}
+
+/* ---------- Fine allenamento: a cosa equivale il volume ---------- */
+const BEASTS=[
+[20,'🐕','un cane','Un cane di taglia media pesa circa 20 kg.'],
+[85,'🦘','un canguro rosso','Un canguro rosso maschio arriva a circa 85 kg.'],
+[120,'🐼','un panda gigante','Un panda gigante adulto pesa circa 120 kg.'],
+[190,'🦁','un leone','Un leone maschio pesa circa 190 kg.'],
+[350,'🐻','un orso grizzly','Un grizzly maschio pesa circa 350 kg.'],
+[550,'🐎','un cavallo','Un cavallo pesa circa 550 kg.'],
+[700,'🐄','una mucca','Una mucca da latte pesa circa 700 kg.'],
+[1000,'🚗','una Fiat 500','Una Fiat 500 pesa circa una tonnellata.'],
+[1500,'🦏','un rinoceronte','Un rinoceronte nero pesa circa 1,5 tonnellate.'],
+[2000,'🦛','un ippopotamo','Un ippopotamo adulto pesa circa 2 tonnellate.'],
+[6000,'🐘','un elefante africano','Un elefante africano maschio pesa circa 6 tonnellate.'],
+[8000,'🦖','un T-Rex','Un Tyrannosaurus rex adulto pesava circa 8 tonnellate.'],
+[12000,'🚌','un autobus','Un autobus urbano vuoto pesa circa 12 tonnellate.'],
+[30000,'🐋','una megattera','Una megattera adulta pesa circa 30 tonnellate.'],
+[150000,'🐳','una balenottera azzurra',"La balenottera azzurra, l'animale più grande mai esistito, pesa circa 150 tonnellate."]];
+function beast(v){const b=[...BEASTS].reverse().find(x=>v>=x[0]);if(!b)return {e:'💪',t:'Ogni chilo conta',f:'Il prossimo traguardo: un cane, 20 kg.'};
+ const m=v/b[0];return {e:b[1],n:b[2],t:m<1.3?`Hai sollevato ${b[2]}!`:`Hai sollevato ${fnum(m)} volte ${b[2]}!`,f:b[3]}}
+function gStats(g){const xs=Object.values(g.ex||{});return {vol:sesVol(g),ex:xs.length,sets:xs.reduce((s,x)=>s+x.length,0),reps:xs.reduce((s,x)=>s+x.reduce((a,r)=>a+(+r[1]||0),0),0)}}
+let TRO=null;
+function showTrophy(g){const st=gStats(g),b=beast(st.vol),lt=lastTpl(g.tpl,g.date);TRO=g;
+ const el=document.createElement('div');el.className='tro';el.id='tro';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','Allenamento completato');
+ el.innerHTML=`<div class="box"><p class="small" style="color:#fff;opacity:.85;margin:0">${esc(g.name)} · ${esc(dayLabel(g.date))}</p>
+ <div class="emo" aria-hidden="true">${b.e}</div><p style="margin:0;opacity:.9">Volume totale</p><div class="vol">${kgFmt(st.vol)} kg</div>
+ <h2 style="margin:8px 0 4px">${esc(b.t)}</h2><p class="small" style="color:#fff;opacity:.85">${esc(b.f)}</p>
+ <p class="stt">${st.ex} esercizi · ${st.sets} serie · ${st.reps} ripetizioni${lt?`<br>${pct(st.vol,sesVol(lt))} rispetto al ${short(lt.date)}`:''}</p>
+ <div class="btns"><button class="btn w" data-tr="share">Condividi allenamento</button><button class="btn ghostw" data-tr="close">Chiudi</button></div></div>`;
+ document.body.append(el);document.body.style.overflow='hidden';
+ el.addEventListener('click',e=>{const a=e.target.closest('[data-tr]');if(e.target===el||(a&&a.dataset.tr==='close'))closeTrophy();else if(a&&a.dataset.tr==='share')shareGym(TRO)});
+ el.querySelector('[data-tr=share]').focus()}
+function closeTrophy(){const e=document.getElementById('tro');if(e)e.remove();document.body.style.overflow='';TRO=null}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('tro'))closeTrophy()});
+
+/* Immagine da condividere: 1080×1350, stile pettorale */
+async function gymImage(g){const st=gStats(g),b=beast(st.vol),c=document.createElement('canvas');c.width=1080;c.height=1350;const x=c.getContext('2d');
+ try{await Promise.all(['700 220px "Barlow Condensed"','600 64px "Barlow Condensed"','500 40px Barlow'].map(f=>document.fonts.load(f)))}catch(e){}
+ x.fillStyle='#d4361c';x.fillRect(0,0,1080,1350);x.fillStyle='rgba(0,0,0,.28)';for(const [a,d] of [[60,60],[1020,60],[60,1290],[1020,1290]]){x.beginPath();x.arc(a,d,16,0,7);x.fill()}
+ x.fillStyle='#fff';x.textAlign='center';
+ x.font='700 56px "Barlow Condensed",sans-serif';x.fillText('DADA RUN',540,150);
+ x.font='500 40px Barlow,sans-serif';x.globalAlpha=.9;x.fillText(g.name+' · '+dayLabel(g.date),540,215);x.globalAlpha=1;
+ x.font='300px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';x.fillText(b.e,540,600);
+ x.font='500 44px Barlow,sans-serif';x.fillText('Volume totale',540,720);
+ x.font='700 200px "Barlow Condensed",sans-serif';x.fillText(kgFmt(st.vol)+' kg',540,910);
+ x.font='600 64px "Barlow Condensed",sans-serif';const t=b.t;x.fillText(t,540,1020,980);
+ x.font='500 40px Barlow,sans-serif';x.globalAlpha=.9;x.fillText(`${st.ex} esercizi · ${st.sets} serie · ${st.reps} ripetizioni`,540,1100);
+ x.fillRect(390,1180,300,6);x.font='500 36px Barlow,sans-serif';x.fillText('Verso la Maratona di Roma 2027',540,1250);x.globalAlpha=1;
+ return await new Promise(r=>c.toBlob(r,'image/png'))}
+async function shareGym(g){if(!g)return;const st=gStats(g),b=beast(st.vol);
+ const text=`${g.name}: ${kgFmt(st.vol)} kg sollevati in totale. ${b.t.replace(/!$/,'')} ${b.e} #DadaRun`;
+ try{const blob=await gymImage(g),file=new File([blob],'dada-run-'+g.date+'.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text,title:'Dada Run'});return}
+  if(navigator.share){await navigator.share({text,title:'Dada Run'});return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);toast('Immagine salvata')}
+ catch(e){if(e&&e.name!=='AbortError')toast('Condivisione non riuscita')}}
+
 function gymCard(t,f){
- const key=sel+'_'+t.id,k='g'+key,sv=S.gym[key]||{};
+ const key=sel+'_'+t.id,k='g'+key,sv=S.gym[key]||{},lt=lastTpl(t.id,sel);let tot=0;
  const rows=(t.ex||[]).map(e=>{
-  const last=lastFor(e.k,sel),ls=last?last.ex[e.k]:null,sg=suggest(e,ls),ss=(sv.ex&&sv.ex[e.k])||[];
+  const last=lastFor(e.k,sel),ls=last?last.ex[e.k]:null,sg=suggest(e,ls),ss=(sv.ex&&sv.ex[e.k])||[],hs=histFor(e.k,sel);
+  const cur=[];
   const sets=Array.from({length:Math.max(1,e.sets||1)},(_,i)=>{const pk=ls?ls[Math.min(i,ls.length-1)][0]:'';const kg=fv(k,'kg-'+e.k+'-'+i,ss[i]?ss[i][0]:pk),rp=fv(k,'r-'+e.k+'-'+i,ss[i]?ss[i][1]:'');
+   if(num(rp)!=null)cur.push([num(kg)??0,num(rp)]);
    return `<span class="set"><i>${i+1}</i><input name="kg-${esc(e.k)}-${i}" inputmode="decimal" value="${esc(kg)}" placeholder="kg" aria-label="Serie ${i+1}, kg"><input name="r-${esc(e.k)}-${i}" inputmode="numeric" value="${esc(rp)}" placeholder="${esc(e.hi)}" aria-label="Serie ${i+1}, ripetizioni"></span>`}).join('');
+  const v=setsVol(cur),lv=ls?setsVol(ls):0;tot+=v;
   return `<div class="ex"><div class="exh"><b>${esc(e.n)}</b><span class="tgt">${esc(e.sets)}×${e.lo===e.hi?esc(e.lo):esc(e.lo)+'–'+esc(e.hi)}</span></div>${e.note?`<p class="small">${esc(e.note)}</p>`:''}
-  <p class="last">${ls?`Ultima volta (${short(last.date)}): ${ls.map(s=>esc(fnum(s[0]))+'×'+esc(s[1])).join(' · ')}`:'Prima volta: scegli un carico che ti lasci 1–2 ripetizioni in serbatoio'}${sg?`<br><span class="sug ${sg.c}">${sg.t}</span>`:''}</p><div class="sets">${sets}</div></div>`}).join('');
+  <p class="last">${ls?`Ultima volta (${short(last.date)}): ${ls.map(s=>esc(fnum(s[0]))+'×'+esc(s[1])).join(' · ')}`:'Prima volta: scegli un carico che ti lasci 1–2 ripetizioni in serbatoio'}${sg?`<br><span class="sug ${sg.c}">${sg.t}</span>`:''}</p><div class="sets">${sets}</div>
+  <p class="exv" data-exv="${esc(e.k)}">${v?`Volume ${kgFmt(v)} kg${lv?' · scorsa '+kgFmt(lv)+' kg ('+pct(v,lv)+')':''}`:lv?`Volume scorsa volta: ${kgFmt(lv)} kg`:''}</p>
+  ${hs.length?`<details class="hist"><summary>Storico (${hs.length===6?'ultime 6 sedute':hs.length===1?'1 seduta':hs.length+' sedute'})</summary><table class="mini"><thead><tr><th>Data</th><th>Serie (kg×rip.)</th><th>Rip.</th><th>Volume</th></tr></thead><tbody>${hs.map(g=>{const xs=g.ex[e.k];return `<tr><td>${shortY(g.date)}</td><td>${xs.map(s=>esc(fnum(+s[0]||0))+'×'+esc(s[1])).join(' · ')}</td><td>${xs.reduce((a,s)=>a+(+s[1]||0),0)}</td><td>${kgFmt(setsVol(xs))} kg</td></tr>`}).join('')}</tbody></table></details>`:''}</div>`}).join('');
  const extra=f.w===16?'<p class="small">Settimana gara: solo upper leggero a inizio settimana, metà serie, niente gambe.</p>':f.w>=12&&f.w<16?'<p class="small">Ultime settimane: gambe con circa il 40% di serie in meno, carichi invariati.</p>':'';
  return `<section class="card gymc"><div class="cardhead"><span class="tag">Palestra · sera</span><span class="tag ghost">la tua scheda</span></div>
- <div class="big"><b>${esc(t.name)}</b></div>${extra}<p class="small">I kg sono precompilati con l'ultima volta: scrivi le ripetizioni fatte.</p>
- <form class="log" data-f="gym" data-k="${k}" data-tid="${esc(t.id)}">${rows||'<p class="small">Questa scheda non ha esercizi: aggiungili in Schede.</p>'}<label>Note<textarea name="note" rows="2">${esc(fv(k,'note',sv.note||''))}</textarea></label>
- <div class="row"><span class="small">${sv.date?'Seduta salvata':''}</span><button class="btn gym" type="submit">${sv.date?'Aggiorna seduta':'Salva seduta'}</button></div></form></section>`}
+ <div class="big"><b>${esc(t.name)}</b></div>${extra}<p class="small">I kg sono precompilati con l'ultima volta: scrivi le ripetizioni fatte. Volume = kg × ripetizioni, sommati su tutte le serie.</p>
+ <form class="log" data-f="gym" data-k="${k}" data-tid="${esc(t.id)}">${rows||'<p class="small">Questa scheda non ha esercizi: aggiungili in Schede.</p>'}
+ <div class="volbox">${volLine(tot,lt?sesVol(lt):0,lt&&lt.date)}</div>
+ <label>Note<textarea name="note" rows="2">${esc(fv(k,'note',sv.note||''))}</textarea></label>
+ <div class="row"><span class="btns" style="margin:0">${sv.date?`<button type="button" data-share="${esc(key)}">Condividi allenamento</button>`:''}</span><button class="btn gym" type="submit">${sv.date?'Aggiorna seduta':'Salva seduta'}</button></div></form></section>`}
 
 function coreCard(){const dn=(S.core[sel]&&S.core[sel].done)||[];
  return `<section class="card core"><div class="cardhead"><span class="tag">Core e piedi · dopo la corsa</span><span class="tag ghost">${dn.length}/${CORE.length} fatti</span></div><h2>Routine del sabato, 25 minuti</h2>
@@ -633,7 +723,8 @@ function vProg(){
   return `<div class="cp"><div class="row"><b>${c.k.toUpperCase()} · ${short(c.d)}</b><span class="badge ${st}">${st==='ok'?'Passato':st==='ko'?'Non passato':'Da fare'}</span></div><p>${c.t}</p><p class="small">${hint} Se non passa: ${c.no}.</p>
   <div class="cps"><button data-cp="${c.k}" data-v="ok"${st==='ok'?' class="on"':''}>Passato</button><button data-cp="${c.k}" data-v="ko"${st==='ko'?' class="on"':''}>Non passato</button>${st?`<button data-cp="${c.k}" data-v="">Annulla</button>`:''}</div></div>`}).join('')}</section>
  <section class="card"><h3>Carichi in palestra</h3>${ex.length?`<label>Esercizio<select id="loadsel">${ex.map(e=>`<option value="${esc(e.k)}"${e.k===loadEx?' selected':''}>${esc(e.n)}${series(e.k).length?'':' · nessun dato'}</option>`).join('')}</select></label>
- <div class="fig" data-ch="load"><svg role="img" aria-label="Andamento del carico massimo per seduta"></svg></div><p class="small">Carico della serie più pesante di ogni seduta.</p>`:'<p class="small">Crea le tue schede in Schede: qui vedrai i carichi crescere.</p>'}</section>
+ <div class="fig" data-ch="load"><svg role="img" aria-label="Andamento del carico massimo per seduta"></svg></div><p class="small">Carico della serie più pesante di ogni seduta.</p>
+ <h3 class="sub">Volume per giorno di palestra</h3><div class="fig" data-ch="vol"><svg role="img" aria-label="Volume totale sollevato per giorno"></svg></div><p class="small">Somma di kg × ripetizioni di tutte le schede del giorno.</p>`:'<p class="small">Crea le tue schede in Schede: qui vedrai i carichi crescere.</p>'}</section>
  <h2 style="margin:24px 0 10px">La tua corsa, non solo il piano</h2>
  <div class="tiles"><div class="tile"><b>${fnum(all)}</b><span>km registrati in tutto (${runs.length} corse)</span></div>
  <div class="tile ${lr?lr.cl:''}"><b>${lr?fnum(lr.r):'–'}</b><span>${lr?`carico: ${fnum(lr.a)} km in 7 giorni contro ${fnum(lr.c)} di media`:'carico 7 giorni / media 4 settimane'}</span></div>${best(5)}${best(10)}${best(21)}</div>
@@ -677,6 +768,8 @@ function lineChart(s,pts,o={}){const W=s.clientWidth,H=s.clientHeight;if(!W)retu
 const since=d=>{const t=parse(todayIso());return x=>(t-parse(x.date))/DAY<d};
 const CH={
  load:s=>lineChart(s,loadEx?series(loadEx).map(p=>({date:p.date,v:p.kg})):[],{unit:'kg',min0:true,empty:'Nessuna seduta registrata per questo esercizio'}),
+ vol:s=>{const m={};for(const g of Object.values(S.gym))m[g.date]=(m[g.date]||0)+sesVol(g);
+  lineChart(s,Object.keys(m).sort().map(d=>({date:d,v:m[d]})),{unit:'kg',fmt:kgFmt,min0:true,time:true,empty:'Nessuna seduta registrata'})},
  trend:s=>{const rs=Object.values(S.runs).filter(since(183)).filter(r=>+r.km>0).sort((a,b)=>a.date<b.date?-1:1);
   if(trendM==='pace')lineChart(s,rs.filter(r=>+r.min>0).map(r=>({date:r.date,v:r.min*60/r.km})),{unit:'min/km',fmt:mmss,inv:true,time:true,cls:'run',step:30,empty:'Servono corse con km e minuti'});
   else if(trendM==='hr')lineChart(s,rs.filter(r=>+r.hr>0).map(r=>({date:r.date,v:+r.hr})),{unit:'bpm',fmt:v=>String(Math.round(v)),time:true,cls:'run',empty:'Servono corse con i battiti medi'});
@@ -770,7 +863,8 @@ function render(){
 
 
 const view=$('#view');
-view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data-d],[data-cp],[data-t],[data-x],[data-add],[data-del],[data-st],[data-bk],[data-more],[data-tm],[data-easy],[data-go],[data-ovw]');if(!b)return;
+view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data-d],[data-cp],[data-t],[data-x],[data-add],[data-del],[data-st],[data-bk],[data-more],[data-tm],[data-easy],[data-go],[data-ovw],[data-share]');if(!b)return;
+ if(b.dataset.share){const g=S.gym[b.dataset.share];if(g)shareGym(g);return}
  if(b.dataset.tm){TREAD=b.dataset.tm==='1';lsSet('tread',TREAD?1:0);render();return}
  if(b.dataset.easy){EASY[sel]=b.dataset.easy==='1';render();return}
  if(b.dataset.ovw){location.hash='#calendario';return}
@@ -805,7 +899,8 @@ view.addEventListener('input',e=>{const f=e.target.closest('form[data-f]');if(!f
  storeDraft(f);
  if(f.dataset.f==='run'){const el=f.elements,p=+el.namedItem('pain').value;f.querySelector('output').textContent=p;
   const s=sema({pain:p,worse:el.namedItem('worse').checked,flags:[...f.querySelectorAll('[name=flag]:checked')]});const b=f.querySelector('.sema');b.className='sema '+s.c;b.textContent=s.t;
-  f.querySelector('.pace').textContent=pace(num(el.namedItem('km').value),num(el.namedItem('min').value))}});
+  f.querySelector('.pace').textContent=pace(num(el.namedItem('km').value),num(el.namedItem('min').value))}
+ if(f.dataset.f==='gym')updVol(f)});
 view.addEventListener('change',async e=>{
  if(e.target.id==='loadsel'){loadEx=e.target.value;drawFig('load');return}
  if(e.target.id==='trendsel'){trendM=e.target.value;render();return}
@@ -838,7 +933,7 @@ view.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,el=
   for(const x of t.ex||[]){const sets=[];for(let i=0;i<30;i++){const ki=el.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(el.namedItem('r-'+x.k+'-'+i).value);if(r!=null)sets.push([num(ki.value)??0,r])}if(sets.length)ex[x.k]=sets}
   if(!Object.keys(ex).length){toast('Scrivi le ripetizioni di almeno una serie');return}
   const id=sel+'_'+f.dataset.tid,data={date:sel,tpl:f.dataset.tid,name:t.name,w:fi.w,ex,note:el.namedItem('note').value.slice(0,600),ts:Date.now()};
-  if(await save('gym',id,data)){delete D[f.dataset.k];render()}return}
+  if(await save('gym',id,data,true)){delete D[f.dataset.k];render();showTrophy(data)}return}
  if(f.dataset.f==='tpl'&&ED){const name=ED.name.trim();if(!name){toast('Dai un nome alla scheda');return}
   const int=(v,d,a,b)=>{const n=parseInt(v,10);return isFinite(n)?Math.min(b,Math.max(a,n)):d};
   const ex=ED.ex.filter(x=>String(x.n).trim()).map(x=>{let lo=int(x.lo,8,1,100),hi=int(x.hi,12,1,100);if(lo>hi)[lo,hi]=[hi,lo];return {k:x.k,n:String(x.n).trim().slice(0,60),sets:int(x.sets,3,1,10),lo,hi,note:String(x.note||'').trim().slice(0,120)}});
