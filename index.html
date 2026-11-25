@@ -692,7 +692,9 @@ function vSchede(){
  <p class="small">Il suggerimento sul carico usa le ripetizioni: se chiudi tutte le serie al massimo, ti dice di salire.</p></section>`;
  const list=tpls();
  let h=`<section class="card gymc"><h2>Le tue schede di forza</h2><p>Crea una scheda, scegli i giorni e aggiungi gli esercizi con serie e ripetizioni. La sera compare in Oggi, con lo storico dei carichi e il suggerimento su quando aumentare il peso.</p>
- <div class="row" style="justify-content:flex-start"><button class="btn gym" data-t="new">Nuova scheda</button></div></section>`;
+ <div class="row" style="justify-content:flex-start"><button class="btn gym" data-t="new">Nuova scheda</button></div></section>
+ <section class="card gymc"><h3>Importa da Hevy</h3><p class="small">In Hevy: Profilo → ingranaggio → Esporta e importa dati → Esporta allenamenti. Carica qui il file <code>workout_data.csv</code>: crea le schede delle routine usate nelle ultime settimane (con giorni e serie dedotti dal tuo storico) e importa tutte le sedute passate. Puoi rifarlo quando vuoi: non crea doppioni e non tocca le schede che hai già modificato.</p>
+ ${HEVYMSG?`<div class="sema ok">${HEVYMSG}</div>`:''}<label class="btn gym">Carica workout_data.csv<input type="file" accept=".csv,text/csv,text/comma-separated-values" data-file="hevy" hidden></label></section>`;
  h+=list.map(t=>`<section class="card"><div class="row"><h3>${esc(t.name)}</h3><span class="small">${(t.days||[]).length?(t.days||[]).slice().sort().map(d=>DS[d]).join(', '):'Nessun giorno'}</span></div>
  <p class="small">${(t.ex||[]).map(e=>esc(e.n)+' '+esc(e.sets)+'×'+(e.lo===e.hi?esc(e.lo):esc(e.lo)+'–'+esc(e.hi))).join(' · ')||'Nessun esercizio'}</p>
  <div class="row" style="justify-content:flex-start"><button data-t="edit" data-id="${esc(t.id)}">Modifica</button><button class="danger" data-t="del" data-id="${esc(t.id)}">${delArm===t.id?'Conferma: elimina':'Elimina'}</button></div>${delArm===t.id?'<p class="small">Lo storico delle sedute resta salvato.</p>':''}</section>`).join('');
@@ -840,6 +842,39 @@ function importCsv(text){const rows=csvRows(text.replace(/^﻿/,''));if(rows.len
   list.push({id:iId>=0&&r[iId]?'s'+r[iId].trim():'c'+date+'_'+Math.round(km*100),date,name:(iName>=0?r[iName]:'').slice(0,80),km:Math.round(km*100)/100,min:sec?r1(sec/60):null,
    hr:iHr>=0&&num(r[iHr])?Math.round(num(r[iHr])):null,hrmax:iHm>=0&&num(r[iHm])?Math.round(num(r[iHm])):null,elev:iEv>=0&&num(r[iEv])!=null?Math.round(num(r[iEv])):null,src:'strava'})}
  return {n:mergeActs(list),tot:list.length,skip}}
+/* ---------- Import da Hevy (workout_data.csv) ----------
+   Schede: una per ogni routine usata negli ultimi 45 giorni del file, dagli esercizi dell'ultima seduta.
+   Storico: tutte le sedute. Chiavi stabili: scheda 'h'+slug(titolo), esercizio 'h'+slug(nome), così lo storico dello
+   stesso esercizio si collega anche tra routine diverse e un nuovo import non crea doppioni. */
+const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48);
+function hevyDate(s){s=String(s||'').trim();let m;
+ if(m=s.match(/^(\d{4})-(\d{2})-(\d{2})/))return iso(Date.UTC(+m[1],+m[2]-1,+m[3]));
+ if(m=s.match(/^(\d{1,2}) ([A-Za-z]{3})[a-z]*\.? (\d{4})/)){const mo=MON[m[2].toLowerCase()];return mo==null?null:iso(Date.UTC(+m[3],mo,+m[1]))}
+ if(m=s.match(/^([A-Za-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})/)){const mo=MON[m[1].toLowerCase()];return mo==null?null:iso(Date.UTC(+m[3],mo,+m[2]))}
+ return null}
+function inferDays(list){const cnt=[0,0,0,0,0,0,0];for(const w of list.slice(-8))cnt[info(w.date).dow]++;const mx=Math.max(...cnt);return mx?[cnt.indexOf(mx)]:[]}
+function importHevy(text){const rows=csvRows(text.replace(/^﻿/,''));if(rows.length<2)throw new Error('File vuoto');
+ const hd=rows[0].map(h=>h.trim().toLowerCase()),c=n=>hd.indexOf(n);
+ const iT=c('title'),iS=c('start_time'),iE=c('exercise_title'),iW=c('weight_kg'),iR=c('reps'),iD=c('description'),iTy=c('set_type');
+ if(iT<0||iS<0||iE<0||iR<0)throw new Error('Non sembra l\'export di Hevy (workout_data.csv)');
+ const W=new Map();
+ for(const r of rows.slice(1)){if(r.length<=iR)continue;const reps=num(r[iR]);if(reps==null||reps<=0)continue;if(iTy>=0&&/warm/i.test(r[iTy]))continue;
+  const date=hevyDate(r[iS]),title=String(r[iT]||'').trim(),en=String(r[iE]||'').trim();if(!date||!title||!en)continue;
+  const key=title+'|'+r[iS];if(!W.has(key))W.set(key,{title,date,note:iD>=0?r[iD]:'',ex:new Map()});
+  const w=W.get(key);if(!w.ex.has(en))w.ex.set(en,[]);w.ex.get(en).push([num(iW>=0?r[iW]:'')??0,reps])}
+ const ws=[...W.values()].sort((a,b)=>a.date<b.date?-1:1);if(!ws.length)throw new Error('Nessuna serie trovata nel file');
+ const newest=ws.at(-1).date,byT=new Map();for(const w of ws){if(!byT.has(w.title))byT.set(w.title,[]);byT.get(w.title).push(w)}
+ const tpl={...S.templates},made=[];let o=Date.now();
+ for(const [title,list] of byT){const id='h'+slug(title),last=list.at(-1);if(tpl[id]||(parse(newest)-parse(last.date))/DAY>45)continue;
+  tpl[id]={name:title.slice(0,40),days:inferDays(list),ord:o++,src:'hevy',ex:[...last.ex].map(([n,ss])=>{const rs=ss.map(s=>s[1]);let lo=Math.min(...rs),hi=Math.max(...rs);if(hi-lo<2)hi=lo+2;
+   return {k:'h'+slug(n),n:n.slice(0,60),sets:Math.min(10,ss.length),lo:Math.min(lo,100),hi:Math.min(hi,100),note:''}})};made.push(title)}
+ const gym={...S.gym},seen=new Set();let ns=0;
+ for(const w of ws){const tid='h'+slug(w.title),id=w.date+'_'+tid;if(gym[id]&&gym[id].src!=='hevy')continue;
+  const ex=seen.has(id)?{...gym[id].ex}:{};for(const [n,ss] of w.ex){const k='h'+slug(n);ex[k]=(ex[k]||[]).concat(ss)}
+  if(!gym[id])ns++;const f=info(w.date);gym[id]={date:w.date,tpl:tid,name:w.title.slice(0,40),w:inPlan(f)?f.w:null,ex,note:String(w.note||'').slice(0,600),src:'hevy',ts:Date.now()};seen.add(id)}
+ S.templates=tpl;S.gym=gym;persist('templates');persist('gym');
+ return {tot:seen.size,ns,made,from:ws[0].date,to:newest}}
+let HEVYMSG='';
 /* ---------- Backup ---------- */
 function exportBackup(){const data={};for(const c of COLS)data[c]=S[c];data.meta=S.cps;
  const b=new Blob([JSON.stringify({app:'roma27',v:1,exported:new Date().toISOString(),data},null,1)],{type:'application/json'});
@@ -906,7 +941,9 @@ view.addEventListener('change',async e=>{
  if(e.target.id==='trendsel'){trendM=e.target.value;render();return}
  if(e.target.dataset.file){const inp=e.target,file=inp.files&&inp.files[0];if(!file)return;
   try{const text=await file.text();
-   if(inp.dataset.file==='csv'){const r=importCsv(text);render();toast(`${r.tot} corse lette, ${r.n} nuove`)}
+   if(inp.dataset.file==='hevy'){const r=importHevy(text);
+    HEVYMSG=`Importate ${r.tot} sedute di palestra dal ${esc(shortY(r.from))} al ${esc(shortY(r.to))} (${r.ns} nuove).${r.made.length?` Schede create: ${r.made.map(esc).join(', ')}: controlla i giorni e i range di ripetizioni.`:''}`;render();toast('Hevy importato')}
+   else if(inp.dataset.file==='csv'){const r=importCsv(text);render();toast(`${r.tot} corse lette, ${r.n} nuove`)}
    else{const n=importBackup(text);render();toast(`Backup importato: ${n} elementi`)}}
   catch(err){note('Importazione non riuscita: '+(err.message||err))}
   inp.value='';return}
