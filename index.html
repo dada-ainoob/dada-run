@@ -161,6 +161,15 @@ background-image:radial-gradient(circle at 16px 16px,rgba(0,0,0,.28) 4px,transpa
 .tro .btn.w{background:#fff;color:#a92b16;border-color:#fff;font-weight:700}.tro .btn.ghostw{background:transparent;color:#fff;border-color:rgba(255,255,255,.7)}
 @keyframes pop{0%{transform:scale(.2) rotate(-12deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
 @media(prefers-reduced-motion:reduce){.tro .emo{animation:none}}
+.set{position:relative}.set input::placeholder{color:var(--mute);opacity:.6}
+.set.pr{box-shadow:0 0 0 2px #d4a017;background:light-dark(#fff6dc,#2c2410)}.set.pr::after{content:'🏅';position:absolute;top:-10px;right:-8px;font-size:18px}
+.pra{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:40;display:flex;gap:12px;align-items:center;width:max-content;max-width:calc(100% - 32px);
+background:var(--card);color:var(--ink);border:2px solid #d4a017;border-radius:16px;padding:10px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);animation:drop .45s cubic-bezier(.2,1.3,.4,1);cursor:pointer}
+.pra .m{font-size:44px;line-height:1}.pra b{display:block;font:700 22px/1.1 "Barlow Condensed",sans-serif;color:light-dark(#9a6b00,#f0c050)}.pra span{display:block;font-size:15px}.pra .pm{font-size:14px;color:var(--mute)}
+.pra.out{opacity:0;transition:opacity .35s}
+@keyframes drop{0%{transform:translate(-50%,-140%)}100%{transform:translate(-50%,0)}}
+@media(prefers-reduced-motion:reduce){.pra{animation:none}}
+.tro .prs{background:rgba(0,0,0,.18);border-radius:12px;padding:10px 12px;margin:12px 0 0;text-align:left;font-size:14px}.tro .prs b{display:block;font-size:16px;margin-bottom:4px}.tro .prs span{display:block}
 .btn.go{width:100%;min-height:56px;font-size:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:10px}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;margin:6px 0 10px}
 .week button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;border:0;background:none;min-height:64px}
@@ -518,13 +527,44 @@ const histFor=(k,before,n=6)=>Object.values(S.gym).filter(g=>g.date<before&&g.ex
 const lastTpl=(tid,before)=>Object.values(S.gym).filter(g=>g.tpl===tid&&g.date<before).sort((a,b)=>a.date<b.date?1:-1)[0];
 const pct=(a,b)=>b?(a>=b?'+':'−')+fnum(Math.abs(a-b)/b*100)+'%':'';
 /* serie lette dal modulo (anche prima di salvare) */
-function formSets(f,t){const out={};for(const x of t.ex||[]){const ss=[];for(let i=0;i<30;i++){const ki=f.elements.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(f.elements.namedItem('r-'+x.k+'-'+i).value);if(r!=null)ss.push([num(ki.value)??0,r])}if(ss.length)out[x.k]=ss}return out}
+function formSets(f,t){const out={};for(const x of t.ex||[]){const ss=[];for(let i=0;i<30;i++){const ki=f.elements.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(f.elements.namedItem('r-'+x.k+'-'+i).value);if(r!=null)ss.push([num(ki.value)??num(ki.placeholder)??0,r])}if(ss.length)out[x.k]=ss}return out}
 function volLine(cur,prev,prevDate){return `<b>${kgFmt(cur)} kg</b><span>volume totale${prev?` · la scorsa volta (${short(prevDate)}) ${kgFmt(prev)} kg${cur?' · '+pct(cur,prev):''}`:''}</span>`}
 function updVol(f){const t=S.templates[f.dataset.tid];if(!t)return;const ex=formSets(f,t),lt=lastTpl(f.dataset.tid,sel);let tot=0;
  for(const x of t.ex||[]){const v=setsVol(ex[x.k]),el=f.querySelector(`[data-exv="${CSS.escape(x.k)}"]`),ls=lastFor(x.k,sel),lv=ls?setsVol(ls.ex[x.k]):0;tot+=v;
   if(el)el.textContent=v?`Volume ${kgFmt(v)} kg${lv?' · scorsa '+kgFmt(lv)+' kg ('+pct(v,lv)+')':''}`:lv?`Volume scorsa volta: ${kgFmt(lv)} kg`:''}
  const vb=f.querySelector('.volbox');if(vb)vb.innerHTML=volLine(tot,lt?sesVol(lt):0,lt&&lt.date)}
 
+/* ---------- Record personali ----------
+   Con peso: peso massimo mai sollevato, oppure massimale stimato (Epley: kg × (1 + rip/30)) più alto di sempre.
+   A corpo libero (kg 0): più ripetizioni di sempre in una serie. Si confronta con tutte le sedute prima di quel giorno
+   più le serie già fatte oggi; la prima volta che fai un esercizio non c'è record. */
+const e1rm=(w,r)=>w*(1+r/30);
+function bestOf(k,before,extra){let kg=0,e1=0,reps=0,n=0;const sets=[];
+ for(const g of Object.values(S.gym))if(g.date<before&&g.ex&&g.ex[k])sets.push(...g.ex[k]);
+ for(const [w,r] of sets.concat(extra||[])){const W=+w||0,R=+r||0;if(!R)continue;n++;if(W>kg)kg=W;if(W&&e1rm(W,R)>e1)e1=e1rm(W,R);if(!W&&R>reps)reps=R}return {kg,e1,reps,n}}
+function prOf(k,w,r,before,extra){const b=bestOf(k,before,extra);if(!b.n||!r)return null;
+ if(w>0&&w>b.kg)return {t:'peso',m:`Peso massimo: ${fnum(w)} kg × ${r}`,p:b.kg?`prima ${fnum(b.kg)} kg`:''};
+ if(w>0&&b.e1&&e1rm(w,r)>b.e1+.05)return {t:'1rm',m:`Massimale stimato: ${fnum(r1(e1rm(w,r)))} kg (${fnum(w)} kg × ${r})`,p:`prima ${fnum(r1(b.e1))} kg`};
+ if(!w&&b.reps&&r>b.reps)return {t:'rip',m:`Ripetizioni: ${r} in una serie`,p:`prima ${b.reps}`};return null}
+/* tutti i record di una seduta, il migliore per esercizio */
+function sessionPRs(g){const out=[];
+ for(const [k,ss] of Object.entries(g.ex||{})){const done=[];let best=null;
+  for(const [w,r] of ss){const p=prOf(k,+w||0,+r||0,g.date,done);if(p)best=p;done.push([w,r])}
+  if(best)out.push({k,n:exName(k,g),...best})}return out}
+function exName(k,g){const t=S.templates[g.tpl];const e=t&&(t.ex||[]).find(x=>x.k===k);if(e)return e.n;for(const t2 of Object.values(S.templates)){const x=(t2.ex||[]).find(y=>y.k===k);if(x)return x.n}return 'Esercizio'}
+const PRSEEN=new Set();let prT;
+function prAlert(name,p){const old=document.getElementById('pra');if(old)old.remove();
+ const el=document.createElement('div');el.id='pra';el.className='pra';el.setAttribute('role','status');
+ el.innerHTML=`<span class="m" aria-hidden="true">🏅</span><div><b>Record personale!</b><span>${esc(name)}</span><span class="pm">${esc(p.m)}${p.p?' · '+esc(p.p):''}</span></div>`;
+ document.body.append(el);if(navigator.vibrate)navigator.vibrate([80,60,80,60,200]);clearTimeout(prT);prT=setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),400)},4500);
+ el.addEventListener('click',()=>el.remove())}
+/* controllo dopo ogni serie: f = modulo della scheda, inp = campo appena compilato */
+function checkPR(f,inp){const m=String(inp.name||'').match(/^(kg|r)-(.+)-(\d+)$/);if(!m)return;const k=m[2],i=+m[3],el=f.elements;
+ const val=j=>{const ki=el.namedItem('kg-'+k+'-'+j),ri=el.namedItem('r-'+k+'-'+j);if(!ki||!ri)return null;const r=num(ri.value);if(r==null)return null;return [num(ki.value)??num(ki.placeholder)??0,r]};
+ const cur=val(i),box=inp.closest('.set');if(!cur){box&&box.classList.remove('pr');return}
+ const before=[];for(let j=0;j<i;j++){const v=val(j);if(v)before.push(v)}
+ const p=prOf(k,cur[0],cur[1],sel,before);box&&box.classList.toggle('pr',!!p);
+ const key=f.dataset.k+'|'+k+'|'+i+'|'+cur.join('x');if(p&&!PRSEEN.has(key)){PRSEEN.add(key);const t=S.templates[f.dataset.tid];const e=t&&(t.ex||[]).find(x=>x.k===k);prAlert(e?e.n:'Esercizio',p)}}
 /* ---------- Fine allenamento: a cosa equivale il volume ---------- */
 const BEASTS=[
 [20,'🐕','un cane','Un cane di taglia media pesa circa 20 kg.'],
@@ -546,11 +586,12 @@ function beast(v){const b=[...BEASTS].reverse().find(x=>v>=x[0]);if(!b)return {e
  const m=v/b[0];return {e:b[1],n:b[2],t:m<1.3?`Hai sollevato ${b[2]}!`:`Hai sollevato ${fnum(m)} volte ${b[2]}!`,f:b[3]}}
 function gStats(g){const xs=Object.values(g.ex||{});return {vol:sesVol(g),ex:xs.length,sets:xs.reduce((s,x)=>s+x.length,0),reps:xs.reduce((s,x)=>s+x.reduce((a,r)=>a+(+r[1]||0),0),0)}}
 let TRO=null;
-function showTrophy(g){const st=gStats(g),b=beast(st.vol),lt=lastTpl(g.tpl,g.date);TRO=g;
+function showTrophy(g){const st=gStats(g),b=beast(st.vol),lt=lastTpl(g.tpl,g.date),prs=sessionPRs(g);TRO=g;
  const el=document.createElement('div');el.className='tro';el.id='tro';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','Allenamento completato');
  el.innerHTML=`<div class="box"><p class="small" style="color:#fff;opacity:.85;margin:0">${esc(g.name)} · ${esc(dayLabel(g.date))}</p>
  <div class="emo" aria-hidden="true">${b.e}</div><p style="margin:0;opacity:.9">Volume totale</p><div class="vol">${kgFmt(st.vol)} kg</div>
  <h2 style="margin:8px 0 4px">${esc(b.t)}</h2><p class="small" style="color:#fff;opacity:.85">${esc(b.f)}</p>
+ ${prs.length?`<div class="prs"><b>🏅 ${prs.length===1?'1 record personale':prs.length+' record personali'}</b>${prs.map(p=>`<span>${esc(p.n)}: ${esc(p.m)}</span>`).join('')}</div>`:''}
  <p class="stt">${st.ex} esercizi · ${st.sets} serie · ${st.reps} ripetizioni${lt?`<br>${pct(st.vol,sesVol(lt))} rispetto al ${short(lt.date)}`:''}</p>
  <div class="btns"><button class="btn w" data-tr="share">Condividi allenamento</button><button class="btn ghostw" data-tr="close">Chiudi</button></div></div>`;
  document.body.append(el);document.body.style.overflow='hidden';
@@ -570,11 +611,11 @@ async function gymImage(g){const st=gStats(g),b=beast(st.vol),c=document.createE
  x.font='500 44px Barlow,sans-serif';x.fillText('Volume totale',540,720);
  x.font='700 200px "Barlow Condensed",sans-serif';x.fillText(kgFmt(st.vol)+' kg',540,910);
  x.font='600 64px "Barlow Condensed",sans-serif';const t=b.t;x.fillText(t,540,1020,980);
- x.font='500 40px Barlow,sans-serif';x.globalAlpha=.9;x.fillText(`${st.ex} esercizi · ${st.sets} serie · ${st.reps} ripetizioni`,540,1100);
+ const np=sessionPRs(g).length;x.font='500 40px Barlow,sans-serif';x.globalAlpha=.9;x.fillText(`${st.ex} esercizi · ${st.sets} serie · ${st.reps} ripetizioni`+(np?` · 🏅 ${np} ${np===1?'record':'record'}`:''),540,1100,1000);
  x.fillRect(390,1180,300,6);x.font='500 36px Barlow,sans-serif';x.fillText('Verso la Maratona di Roma 2027',540,1250);x.globalAlpha=1;
  return await new Promise(r=>c.toBlob(r,'image/png'))}
 async function shareGym(g){if(!g)return;const st=gStats(g),b=beast(st.vol);
- const text=`${g.name}: ${kgFmt(st.vol)} kg sollevati in totale. ${b.t.replace(/!$/,'')} ${b.e} #DadaRun`;
+ const np=sessionPRs(g).length,text=`${g.name}: ${kgFmt(st.vol)} kg sollevati in totale. ${b.t.replace(/!$/,'')} ${b.e}${np?` e ${np} ${np===1?'record personale':'record personali'} 🏅`:''} #DadaRun`;
  try{const blob=await gymImage(g),file=new File([blob],'dada-run-'+g.date+'.png',{type:'image/png'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text,title:'Dada Run'});return}
   if(navigator.share){await navigator.share({text,title:'Dada Run'});return}
@@ -586,9 +627,10 @@ function gymCard(t,f){
  const rows=(t.ex||[]).map(e=>{
   const last=lastFor(e.k,sel),ls=last?last.ex[e.k]:null,sg=suggest(e,ls),ss=(sv.ex&&sv.ex[e.k])||[],hs=histFor(e.k,sel);
   const cur=[];
-  const sets=Array.from({length:Math.max(1,e.sets||1)},(_,i)=>{const pk=ls?ls[Math.min(i,ls.length-1)][0]:'';const kg=fv(k,'kg-'+e.k+'-'+i,ss[i]?ss[i][0]:pk),rp=fv(k,'r-'+e.k+'-'+i,ss[i]?ss[i][1]:'');
-   if(num(rp)!=null)cur.push([num(kg)??0,num(rp)]);
-   return `<span class="set"><i>${i+1}</i><input name="kg-${esc(e.k)}-${i}" inputmode="decimal" value="${esc(kg)}" placeholder="kg" aria-label="Serie ${i+1}, kg"><input name="r-${esc(e.k)}-${i}" inputmode="numeric" value="${esc(rp)}" placeholder="${esc(e.hi)}" aria-label="Serie ${i+1}, ripetizioni"></span>`}).join('');
+  const sets=Array.from({length:Math.max(1,e.sets||1)},(_,i)=>{const lp=ls?(ls[i]||ls.at(-1)):null,pkg=lp?fnum(+lp[0]||0):'',prp=ls&&ls[i]?String(ls[i][1]):'';
+   const kg=fv(k,'kg-'+e.k+'-'+i,ss[i]?fnum(+ss[i][0]||0):''),rp=fv(k,'r-'+e.k+'-'+i,ss[i]?ss[i][1]:'');
+   if(num(rp)!=null)cur.push([num(kg)??num(pkg)??0,num(rp)]);
+   return `<span class="set"><i>${i+1}</i><input name="kg-${esc(e.k)}-${i}" inputmode="decimal" value="${esc(kg)}" placeholder="${esc(pkg||'kg')}" aria-label="Serie ${i+1}, kg${pkg?', la volta scorsa '+esc(pkg):''}"><input name="r-${esc(e.k)}-${i}" inputmode="numeric" value="${esc(rp)}" placeholder="${esc(prp||e.hi)}" aria-label="Serie ${i+1}, ripetizioni${prp?', la volta scorsa '+esc(prp):''}"></span>`}).join('');
   const v=setsVol(cur),lv=ls?setsVol(ls):0;tot+=v;
   return `<div class="ex"><div class="exh"><b>${esc(e.n)}</b><span class="tgt">${esc(e.sets)}×${e.lo===e.hi?esc(e.lo):esc(e.lo)+'–'+esc(e.hi)}</span></div>${e.note?`<p class="small">${esc(e.note)}</p>`:''}
   <p class="last">${ls?`Ultima volta (${short(last.date)}): ${ls.map(s=>esc(fnum(s[0]))+'×'+esc(s[1])).join(' · ')}`:'Prima volta: scegli un carico che ti lasci 1–2 ripetizioni in serbatoio'}${sg?`<br><span class="sug ${sg.c}">${sg.t}</span>`:''}</p><div class="sets">${sets}</div>
@@ -596,7 +638,7 @@ function gymCard(t,f){
   ${hs.length?`<details class="hist"><summary>Storico (${hs.length===6?'ultime 6 sedute':hs.length===1?'1 seduta':hs.length+' sedute'})</summary><table class="mini"><thead><tr><th>Data</th><th>Serie (kg×rip.)</th><th>Rip.</th><th>Volume</th></tr></thead><tbody>${hs.map(g=>{const xs=g.ex[e.k];return `<tr><td>${shortY(g.date)}</td><td>${xs.map(s=>esc(fnum(+s[0]||0))+'×'+esc(s[1])).join(' · ')}</td><td>${xs.reduce((a,s)=>a+(+s[1]||0),0)}</td><td>${kgFmt(setsVol(xs))} kg</td></tr>`}).join('')}</tbody></table></details>`:''}</div>`}).join('');
  const extra=f.w===16?'<p class="small">Settimana gara: solo upper leggero a inizio settimana, metà serie, niente gambe.</p>':f.w>=12&&f.w<16?'<p class="small">Ultime settimane: gambe con circa il 40% di serie in meno, carichi invariati.</p>':'';
  return `<section class="card gymc"><div class="cardhead"><span class="tag">Palestra · sera</span><span class="tag ghost">la tua scheda</span></div>
- <div class="big"><b>${esc(t.name)}</b></div>${extra}<p class="small">I kg sono precompilati con l'ultima volta: scrivi le ripetizioni fatte. Volume = kg × ripetizioni, sommati su tutte le serie.</p>
+ <div class="big"><b>${esc(t.name)}</b></div>${extra}<p class="small">In grigio trovi peso e ripetizioni della volta scorsa, serie per serie. Se usi lo stesso peso basta scrivere le ripetizioni. Volume = kg × ripetizioni, sommati su tutte le serie.</p>
  <form class="log" data-f="gym" data-k="${k}" data-tid="${esc(t.id)}">${rows||'<p class="small">Questa scheda non ha esercizi: aggiungili in Schede.</p>'}
  <div class="volbox">${volLine(tot,lt?sesVol(lt):0,lt&&lt.date)}</div>
  <label>Note<textarea name="note" rows="2">${esc(fv(k,'note',sv.note||''))}</textarea></label>
@@ -937,6 +979,7 @@ view.addEventListener('input',e=>{const f=e.target.closest('form[data-f]');if(!f
   f.querySelector('.pace').textContent=pace(num(el.namedItem('km').value),num(el.namedItem('min').value))}
  if(f.dataset.f==='gym')updVol(f)});
 view.addEventListener('change',async e=>{
+ {const gf=e.target.closest('form[data-f=gym]');if(gf&&/^(kg|r)-/.test(e.target.name||''))checkPR(gf,e.target)}
  if(e.target.id==='loadsel'){loadEx=e.target.value;drawFig('load');return}
  if(e.target.id==='trendsel'){trendM=e.target.value;render();return}
  if(e.target.dataset.file){const inp=e.target,file=inp.files&&inp.files[0];if(!file)return;
@@ -967,7 +1010,7 @@ view.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,el=
  if(f.dataset.f==='res'){const data={date:sel,w:fi.w,blocks:[...f.querySelectorAll('[name=b]:checked')].map(c=>+c.value),rpe:num(el.namedItem('rpe').value),note:el.namedItem('note').value.slice(0,600),ts:Date.now()};
   if(await save('res',sel,data)){delete D[f.dataset.k];render()}return}
  if(f.dataset.f==='gym'){const t=S.templates[f.dataset.tid];if(!t)return;const ex={};
-  for(const x of t.ex||[]){const sets=[];for(let i=0;i<30;i++){const ki=el.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(el.namedItem('r-'+x.k+'-'+i).value);if(r!=null)sets.push([num(ki.value)??0,r])}if(sets.length)ex[x.k]=sets}
+  for(const x of t.ex||[]){const sets=[];for(let i=0;i<30;i++){const ki=el.namedItem('kg-'+x.k+'-'+i);if(!ki)break;const r=num(el.namedItem('r-'+x.k+'-'+i).value);if(r!=null)sets.push([num(ki.value)??num(ki.placeholder)??0,r])}if(sets.length)ex[x.k]=sets}
   if(!Object.keys(ex).length){toast('Scrivi le ripetizioni di almeno una serie');return}
   const id=sel+'_'+f.dataset.tid,data={date:sel,tpl:f.dataset.tid,name:t.name,w:fi.w,ex,note:el.namedItem('note').value.slice(0,600),ts:Date.now()};
   if(await save('gym',id,data,true)){delete D[f.dataset.k];render();showTrophy(data)}return}
