@@ -171,6 +171,7 @@ background:var(--card);color:var(--ink);border:2px solid #d4a017;border-radius:1
 @media(prefers-reduced-motion:reduce){.pra{animation:none}}
 .tro .prs{background:rgba(0,0,0,.18);border-radius:12px;padding:10px 12px;margin:12px 0 0;text-align:left;font-size:14px}.tro .prs b{display:block;font-size:16px;margin-bottom:4px}.tro .prs span{display:block}
 .imp{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;background:var(--bg);border-radius:12px;padding:10px 12px;margin:12px 0}
+.sw{display:inline-flex;margin-right:8px;vertical-align:-2px}.sw i{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);margin-right:-4px;box-shadow:0 0 0 1.5px var(--card)}
 .shoe{padding:12px 0;border-top:1px solid var(--line)}.shoe:first-of-type{border-top:0}
 .sbar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.sbar span{display:block;height:100%;border-radius:99px}.sbar .ok{background:var(--ok)}.sbar .warn{background:var(--warn)}.sbar .bad{background:var(--bad)}
 .btn.go{width:100%;min-height:56px;font-size:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:10px}
@@ -1018,19 +1019,22 @@ let HMSG='';
    shoes/{id} → {name, start (km già fatti prima di usarle qui), limit (km di vita previsti), def, retired, added}.
    I km di una scarpa = start + somma dei km delle corse con runs.shoe = id. */
 let SHED=null;
+const SCOL=[['giallo fluo','#d7f400'],['verde fluo','#39ff14'],['arancio fluo','#ff6a00'],['rosa fluo','#ff3fa4'],['nero','#111111'],['bianco','#f4f4f4'],['grigio','#8a8d93'],['argento','#c0c4c8'],['giallo','#f5c400'],['arancio','#f07c1e'],['rosso','#d32f2f'],['rosa','#f48fb1'],['fucsia','#d81b8c'],['viola','#7e57c2'],['blu','#1e4fbf'],['azzurro','#4fb3f6'],['celeste','#8fd3fe'],['verde','#2e9d4f'],['marrone','#7b5134'],['beige','#d8c3a0'],['oro','#c9a227']];
+function swatches(t){t=String(t||'').toLowerCase();const out=[];for(const [w,c] of SCOL){const i=t.indexOf(w);if(i>=0){if(!out.some(o=>o[1]===c))out.push([i,c]);t=t.split(w).join(' '.repeat(w.length))}}return out.sort((x,y)=>x[0]-y[0]).map(o=>o[1]).slice(0,4)}
 const shoeList=()=>Object.entries(S.shoes).map(([id,x])=>({id,...x})).sort((a,b)=>(a.retired?1:0)-(b.retired?1:0)||(b.def?1:0)-(a.def?1:0)||String(a.name).localeCompare(b.name));
 const defShoe=()=>{const d=shoeList().find(x=>x.def&&!x.retired);return d?d.id:null};
 const shoeKm=id=>{const x=S.shoes[id];if(!x)return 0;let k=+x.start||0;for(const r of Object.values(S.runs))if(r.shoe===id)k+=+r.km||0;return k};
 function shoeState(id){const x=S.shoes[id],km=shoeKm(id),lim=+x.limit||700,p=km/lim;return {km,lim,rem:lim-km,p,c:p>=1?'bad':p>=.85?'warn':'ok'}}
 function shoeCard(){const L=shoeList(),act=L.filter(x=>!x.retired),old=L.filter(x=>x.retired);
- const row=x=>{const s=shoeState(x.id);return `<div class="shoe"><div class="row"><b>${esc(x.name)}</b><span>${x.def&&!x.retired?'<span class="badge ok">Predefinita</span>':''}${x.retired?'<span class="badge">In pensione</span>':''}</span></div>
-  <div class="sbar" role="img" aria-label="${esc(fnum(r1(s.km)))} km su ${esc(s.lim)}"><span class="${s.c}" style="width:${Math.min(100,s.p*100)}%"></span></div>
+ const row=x=>{const s=shoeState(x.id),sw=swatches(x.col);return `<div class="shoe"><div class="row"><b>${sw.length?`<span class="sw" aria-hidden="true">${sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span>`:''}${esc(x.name)}</b><span>${x.def&&!x.retired?'<span class="badge ok">Predefinita</span>':''}${x.retired?'<span class="badge">In pensione</span>':''}</span></div>
+  ${x.col?`<p class="small" style="margin:2px 0 0">${esc(x.col)}</p>`:''}<div class="sbar" role="img" aria-label="${esc(fnum(r1(s.km)))} km su ${esc(s.lim)}"><span class="${s.c}" style="width:${Math.min(100,s.p*100)}%"></span></div>
   <div class="row small"><span><b style="color:var(--ink)">${esc(fnum(r1(s.km)))} km</b> percorsi</span><span>${s.rem>0?`ne restano <b style="color:var(--ink)">${esc(fnum(r1(s.rem)))}</b> su ${esc(s.lim)}`:`oltre il limite di ${esc(fnum(r1(-s.rem)))} km`}</span></div>
   ${!x.retired&&s.c!=='ok'?`<p class="small" style="color:var(--${s.c})">${s.c==='bad'?'Da cambiare: l\'ammortizzazione è finita.':'Quasi da cambiare: comincia a guardarti intorno.'}</p>`:''}
   <div class="btns">${!x.retired&&!x.def?`<button data-sh="def" data-id="${esc(x.id)}">Rendi predefinita</button>`:''}<button data-sh="edit" data-id="${esc(x.id)}">Modifica</button>
   ${x.retired?`<button data-sh="back" data-id="${esc(x.id)}">Rimetti in uso</button><button class="danger" data-sh="del" data-id="${esc(x.id)}">${delArm==='shoe/'+x.id?'Conferma: elimina':'Elimina'}</button>`:`<button data-sh="retire" data-id="${esc(x.id)}">Metti in pensione</button>`}</div></div>`};
  const form=SHED?`<form data-f="shoe" class="log"><h3>${SHED.isNew?'Nuove scarpe':'Modifica scarpe'}</h3>
   <label>Nome<input name="name" value="${esc(SHED.name)}" maxlength="40" placeholder="es. Brooks Adrenaline 23"></label>
+  <label>Colorazione<input name="col" value="${esc(SHED.col||'')}" maxlength="40" placeholder="es. nero e giallo fluo"></label>
   <div class="grid2"><label>Km già fatti prima<input name="start" inputmode="decimal" value="${esc(SHED.start)}" placeholder="0"></label><label>Durata prevista (km)<input name="limit" inputmode="numeric" value="${esc(SHED.limit)}" placeholder="700"></label></div>
   <label class="chk"><input type="checkbox" name="def"${SHED.def?' checked':''}>Usa come predefinite per le nuove corse</label>
   ${SHED.isNew&&Object.values(S.runs).some(r=>!r.shoe)?'<label class="chk"><input type="checkbox" name="past">Assegna anche le corse già registrate senza scarpe</label>':''}
@@ -1065,7 +1069,7 @@ const view=$('#view');
 view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data-d],[data-cp],[data-t],[data-x],[data-add],[data-del],[data-st],[data-bk],[data-more],[data-tm],[data-easy],[data-go],[data-ovw],[data-share],[data-goto],[data-sh]');if(!b)return;
  if(b.dataset.sh){const a=b.dataset.sh,id=b.dataset.id,x=S.shoes[id];
   if(a==='new'){SHED={isNew:true,id:'s'+rid(),name:'',start:'',limit:'700',def:!defShoe()};render();document.getElementById('scarpe')?.scrollIntoView();return}
-  if(a==='edit'&&x){SHED={id,name:x.name||'',start:x.start?fnum(x.start):'',limit:String(x.limit||700),def:!!x.def};render();document.getElementById('scarpe')?.scrollIntoView();return}
+  if(a==='edit'&&x){SHED={id,col:x.col||'',name:x.name||'',start:x.start?fnum(x.start):'',limit:String(x.limit||700),def:!!x.def};render();document.getElementById('scarpe')?.scrollIntoView();return}
   if(a==='cancel'){SHED=null;render();return}
   if(a==='def'&&x){const o={};for(const [k2,v2] of Object.entries(S.shoes))o[k2]={...v2,def:k2===id};S.shoes=o;persist('shoes');render();toast('Scarpe predefinite cambiate');return}
   if(a==='retire'&&x){S.shoes={...S.shoes,[id]:{...x,retired:true,def:false}};persist('shoes');render();toast('Messe in pensione');return}
@@ -1140,7 +1144,7 @@ view.addEventListener('change',async e=>{
 view.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,el=f.elements,fi=info(sel),inP=inPlan(fi);
  if(f.dataset.f==='shoe'&&SHED){const name=el.namedItem('name').value.trim().slice(0,40);if(!name){toast('Dai un nome alle scarpe');return}
   const start=Math.max(0,num(el.namedItem('start').value)||0),limit=Math.min(3000,Math.max(100,Math.round(num(el.namedItem('limit').value)||700))),def=el.namedItem('def').checked,id=SHED.id;
-  const o={...S.shoes};if(def)for(const k2 in o)o[k2]={...o[k2],def:false};o[id]={...(o[id]||{added:todayIso()}),name,start,limit,def,retired:(o[id]||{}).retired||false};S.shoes=o;persist('shoes');
+  const o={...S.shoes};if(def)for(const k2 in o)o[k2]={...o[k2],def:false};o[id]={...(o[id]||{added:todayIso()}),name,col:(el.namedItem('col').value||'').trim().slice(0,40),start,limit,def,retired:(o[id]||{}).retired||false};S.shoes=o;persist('shoes');
   const past=el.namedItem('past');if(past&&past.checked){const rs={...S.runs};for(const [d,r] of Object.entries(rs))if(!r.shoe)rs[d]={...r,shoe:id};S.runs=rs;persist('runs')}
   SHED=null;render();toast('Scarpe salvate');return}
  if(f.dataset.f==='run'){const r0=inP?runFor(fi.w,fi.dow):null,run=r0&&r0.t!=='core'?r0:null,km=num(el.namedItem('km').value);if(km==null){toast('Inserisci i km');return}
@@ -1177,6 +1181,7 @@ if(!canStore)note('Questo browser non permette di salvare (navigazione privata?)
 /* Le 4 schede di esempio non ci sono più: le schede le crea l'utente. Rimuovo quelle create in automatico dalla versione precedente, se mai usate */
 if(lsGet('seeded')&&!lsGet('unseeded')){const ex=['A · Push','B · Pull','C · Gambe','D · Upper'],used=new Set(Object.values(S.gym).map(g=>g.tpl));
  for(const [id,t] of Object.entries(S.templates))if(ex.includes(t.name)&&!used.has(id))delete S.templates[id];persist('templates');lsSet('unseeded',1)}
+if(!lsGet('shoeSeed')){if(!Object.keys(S.shoes).length){S.shoes={['s'+rid()]:{name:'Joma Victory 7',col:'nero e giallo fluo',start:0,limit:700,def:true,retired:false,added:todayIso()}};persist('shoes')}lsSet('shoeSeed',1)}
 render();
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 (async()=>{const q=new URLSearchParams(location.search);
