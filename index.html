@@ -171,6 +171,8 @@ background:var(--card);color:var(--ink);border:2px solid #d4a017;border-radius:1
 @media(prefers-reduced-motion:reduce){.pra{animation:none}}
 .tro .prs{background:rgba(0,0,0,.18);border-radius:12px;padding:10px 12px;margin:12px 0 0;text-align:left;font-size:14px}.tro .prs b{display:block;font-size:16px;margin-bottom:4px}.tro .prs span{display:block}
 .imp{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;background:var(--bg);border-radius:12px;padding:10px 12px;margin:12px 0}
+.shoe{padding:12px 0;border-top:1px solid var(--line)}.shoe:first-of-type{border-top:0}
+.sbar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.sbar span{display:block;height:100%;border-radius:99px}.sbar .ok{background:var(--ok)}.sbar .warn{background:var(--warn)}.sbar .bad{background:var(--bad)}
 .btn.go{width:100%;min-height:56px;font-size:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:10px}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;margin:6px 0 10px}
 .week button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;border:0;background:none;min-height:64px}
@@ -310,7 +312,7 @@ function ready(x){if(!x)return null;const why=[],b=rhrBase(x.date);
 function loadRatio(d){const t=parse(d);let a=0,c=0;for(const r of Object.values(S.runs)){const dt=(t-parse(r.date))/DAY;if(dt<0)continue;if(dt<7)a+=+r.km||0;if(dt<28)c+=+r.km||0}
  c/=4;if(c<5)return null;const r=a/c;return {a,c,r,cl:r>1.5?'bad':r>1.3?'warn':'ok'}}
 
-const S={runs:{},gym:{},core:{},res:{},templates:{},rec:{},acts:{},cps:{}},D={},ADD={};
+const S={runs:{},gym:{},core:{},res:{},templates:{},rec:{},acts:{},shoes:{},cps:{}},D={},ADD={};
 let sel=todayIso(),loadEx=null,trendM='pace',ro=null,scrollWeek=true,ED=null,delArm=null,allRuns=false,busy=false;
 const noteEl=$('#note');
 const note=t=>{noteEl.textContent=t;noteEl.hidden=!t};
@@ -319,7 +321,7 @@ const tpls=()=>Object.entries(S.templates).map(([id,t])=>({id,...t})).sort((a,b)
 const tplsFor=dow=>tpls().filter(t=>(t.days||[]).includes(dow));
 
 /* Strato dati: localStorage, una chiave per collezione. Per passare a Supabase/Firebase basta cambiare loadAll() e persist(). */
-const LS='roma27:',COLS=['runs','gym','core','res','templates','rec','acts'];
+const LS='roma27:',COLS=['runs','gym','core','res','templates','rec','acts','shoes'];
 const lsGet=k=>{try{return JSON.parse(localStorage.getItem(LS+k)||'null')}catch(e){return null}};
 const lsSet=(k,v)=>{try{localStorage.setItem(LS+k,JSON.stringify(v));return true}catch(e){return false}};
 let canStore=true;
@@ -502,6 +504,9 @@ function runCard(run){
  <label>Minuti<input name="min" inputmode="decimal" value="${v('min',r.min)}" placeholder="es. 32"></label>
  <label>Bpm medi<input name="hr" inputmode="numeric" value="${v('hr',r.hr)}"></label>
  <label>Bpm max<input name="hrmax" inputmode="numeric" value="${v('hrmax',r.hrmax)}"></label></div>
+ ${(()=>{const L=shoeList().filter(x=>!x.retired||x.id===r.shoe);if(!L.length)return '<p class="small"><button type="button" class="link" data-goto="scarpe">Aggiungi le tue scarpe</button> per contare i km di ognuna.</p>';
+  const cur=fv(k,'shoe',r.shoe??(r.date&&r.pain!=null?'':defShoe()||'')),ss=cur&&S.shoes[cur]?shoeState(cur):null;
+  return `<div class="grid2" style="margin-top:10px"><label>Scarpe<select name="shoe"><option value="">–</option>${L.map(x=>`<option value="${esc(x.id)}"${x.id===cur?' selected':''}>${esc(x.name)} · ${esc(fnum(Math.round(shoeKm(x.id))))} km</option>`).join('')}</select></label></div>${ss&&ss.c!=='ok'?`<p class="small" style="color:var(--${ss.c})">${ss.c==='bad'?'Queste scarpe hanno superato i km previsti: è ora di cambiarle.':'Queste scarpe sono quasi a fine vita: ne restano '+esc(fnum(Math.round(ss.rem)))+' km.'}</p>`:''}`})()}
  <label class="pain">Dolore da 0 a 10: <output>${pain}</output><input type="range" name="pain" min="0" max="10" step="1" value="${pain}"></label>
  <label class="chk"><input type="checkbox" name="worse" value="on"${worse?' checked':''}>Il mattino dopo è peggio</label>
  <fieldset><legend>Segnali d'allarme</legend>${FLAGS.map((t,i)=>`<label class="chk"><input type="checkbox" name="flag" value="${i}"${flags[i]?' checked':''}>${t}</label>`).join('')}</fieldset>
@@ -773,6 +778,7 @@ function vProg(){
  <h2 style="margin:24px 0 10px">La tua corsa, non solo il piano</h2>
  <div class="tiles"><div class="tile"><b>${fnum(all)}</b><span>km registrati in tutto (${runs.length} corse)</span></div>
  <div class="tile ${lr?lr.cl:''}"><b>${lr?fnum(lr.r):'–'}</b><span>${lr?`carico: ${fnum(lr.a)} km in 7 giorni contro ${fnum(lr.c)} di media`:'carico 7 giorni / media 4 settimane'}</span></div>${best(5)}${best(10)}${best(21)}</div>
+ ${shoeCard()}
  <section class="card"><h3>Andamento</h3><label>Cosa guardare<select id="trendsel">${[['pace','Passo medio'],['hr','Battiti medi'],['eff','Efficienza aerobica']].map(o=>`<option value="${o[0]}"${trendM===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></label>
  <div class="fig" data-ch="trend"><svg role="img" aria-label="Andamento delle corse negli ultimi 6 mesi"></svg></div>
  <p class="small">${trendM==='eff'?'Metri percorsi per ogni battito: se sale, a parità di cuore corri più veloce. È il segno più pulito che la base aerobica cresce.':trendM==='pace'?'Ultimi 6 mesi, una corsa per punto. In alto i passi più veloci.':'Ultimi 6 mesi. Confrontalo con il passo: stessi battiti a passo più veloce = progresso.'}</p></section>
@@ -868,7 +874,7 @@ function mergeActs(list){const touched=new Set(),acts={...S.acts};let n=0;
  for(const d of touched){const r=runs[d],day=Object.values(acts).filter(a=>a.date===d),f=info(d),p0=inPlan(f)?runFor(f.w,f.dow):null,p=p0&&p0.t!=='core'?p0:null;
   const km=day.reduce((s,a)=>s+a.km,0),min=day.reduce((s,a)=>s+(a.min||0),0),hw=day.filter(a=>a.hr&&a.min),hm=hw.reduce((s,a)=>s+a.min,0);
   const fromS={km:r1(km),min:r1(min)||null,hr:hm?Math.round(hw.reduce((s,a)=>s+a.hr*a.min,0)/hm):null,hrmax:Math.max(0,...day.map(a=>a.hrmax||0))||null,elev:day.some(a=>a.elev!=null)?day.reduce((s,a)=>s+(a.elev||0),0):null};
-  const base={date:d,w:inPlan(f)?f.w:null,t:r&&r.t||(p?p.t:'libera'),plan:p?p.km:null,sids:day.map(a=>a.id),name:day.map(a=>a.name).join(' + ')};
+  const base={shoe:r&&r.shoe||defShoe(),date:d,w:inPlan(f)?f.w:null,t:r&&r.t||(p?p.t:'libera'),plan:p?p.km:null,sids:day.map(a=>a.id),name:day.map(a=>a.name).join(' + ')};
   if(r&&!isAuto(r.src)){const fill={};for(const k in fromS)if(r[k]==null||r[k]==='')fill[k]=fromS[k];runs[d]={...r,...fill,sids:base.sids}}
   else runs[d]={...(r||{}),...base,...fromS,src:r&&r.src||day[0].src||'strava',ts:Date.now()}}
  S.runs=runs;persist('acts');persist('runs');return n}
@@ -1008,6 +1014,31 @@ function parseTrack(text,fname){const doc=new DOMParser().parseFromString(text,'
  for(const p of pts)if(p.h)hrs.push(p.h);const st=new Date(pts[0].t);if(isNaN(st))throw new Error(fname+': mancano gli orari dei punti');
  return {id:'g'+st.getTime(),date:day(st),name:(tx(doc,'name')||fname.replace(/\.\w+$/,'')).slice(0,60),km:Math.round(m/10)/100,min:mov?r1(mov/60):r1((pts.at(-1).t-pts[0].t)/6e4),hr:hrs.length?Math.round(hrs.reduce((s,x)=>s+x,0)/hrs.length):null,hrmax:hrs.length?Math.max(...hrs):null,elev:Math.round(up)||null,src:'file'}}
 let HMSG='';
+/* ---------- Scarpiera ----------
+   shoes/{id} → {name, start (km già fatti prima di usarle qui), limit (km di vita previsti), def, retired, added}.
+   I km di una scarpa = start + somma dei km delle corse con runs.shoe = id. */
+let SHED=null;
+const shoeList=()=>Object.entries(S.shoes).map(([id,x])=>({id,...x})).sort((a,b)=>(a.retired?1:0)-(b.retired?1:0)||(b.def?1:0)-(a.def?1:0)||String(a.name).localeCompare(b.name));
+const defShoe=()=>{const d=shoeList().find(x=>x.def&&!x.retired);return d?d.id:null};
+const shoeKm=id=>{const x=S.shoes[id];if(!x)return 0;let k=+x.start||0;for(const r of Object.values(S.runs))if(r.shoe===id)k+=+r.km||0;return k};
+function shoeState(id){const x=S.shoes[id],km=shoeKm(id),lim=+x.limit||700,p=km/lim;return {km,lim,rem:lim-km,p,c:p>=1?'bad':p>=.85?'warn':'ok'}}
+function shoeCard(){const L=shoeList(),act=L.filter(x=>!x.retired),old=L.filter(x=>x.retired);
+ const row=x=>{const s=shoeState(x.id);return `<div class="shoe"><div class="row"><b>${esc(x.name)}</b><span>${x.def&&!x.retired?'<span class="badge ok">Predefinita</span>':''}${x.retired?'<span class="badge">In pensione</span>':''}</span></div>
+  <div class="sbar" role="img" aria-label="${esc(fnum(r1(s.km)))} km su ${esc(s.lim)}"><span class="${s.c}" style="width:${Math.min(100,s.p*100)}%"></span></div>
+  <div class="row small"><span><b style="color:var(--ink)">${esc(fnum(r1(s.km)))} km</b> percorsi</span><span>${s.rem>0?`ne restano <b style="color:var(--ink)">${esc(fnum(r1(s.rem)))}</b> su ${esc(s.lim)}`:`oltre il limite di ${esc(fnum(r1(-s.rem)))} km`}</span></div>
+  ${!x.retired&&s.c!=='ok'?`<p class="small" style="color:var(--${s.c})">${s.c==='bad'?'Da cambiare: l\'ammortizzazione è finita.':'Quasi da cambiare: comincia a guardarti intorno.'}</p>`:''}
+  <div class="btns">${!x.retired&&!x.def?`<button data-sh="def" data-id="${esc(x.id)}">Rendi predefinita</button>`:''}<button data-sh="edit" data-id="${esc(x.id)}">Modifica</button>
+  ${x.retired?`<button data-sh="back" data-id="${esc(x.id)}">Rimetti in uso</button><button class="danger" data-sh="del" data-id="${esc(x.id)}">${delArm==='shoe/'+x.id?'Conferma: elimina':'Elimina'}</button>`:`<button data-sh="retire" data-id="${esc(x.id)}">Metti in pensione</button>`}</div></div>`};
+ const form=SHED?`<form data-f="shoe" class="log"><h3>${SHED.isNew?'Nuove scarpe':'Modifica scarpe'}</h3>
+  <label>Nome<input name="name" value="${esc(SHED.name)}" maxlength="40" placeholder="es. Brooks Adrenaline 23"></label>
+  <div class="grid2"><label>Km già fatti prima<input name="start" inputmode="decimal" value="${esc(SHED.start)}" placeholder="0"></label><label>Durata prevista (km)<input name="limit" inputmode="numeric" value="${esc(SHED.limit)}" placeholder="700"></label></div>
+  <label class="chk"><input type="checkbox" name="def"${SHED.def?' checked':''}>Usa come predefinite per le nuove corse</label>
+  ${SHED.isNew&&Object.values(S.runs).some(r=>!r.shoe)?'<label class="chk"><input type="checkbox" name="past">Assegna anche le corse già registrate senza scarpe</label>':''}
+  <div class="row"><button type="button" data-sh="cancel">Annulla</button><button class="btn red" type="submit">Salva</button></div></form>`:'';
+ return `<section class="card" id="scarpe"><h3>Scarpiera</h3><p class="small">Ogni corsa conta sui km delle scarpe che scegli quando la registri. Di solito una scarpa da corsa dura 600–800 km; con i piedi piatti conviene non tirarla oltre: se compaiono fastidi nuovi a piedi, tibie o ginocchia, controlla prima l'usura delle scarpe. Alternare due paia aiuta.</p>
+ ${act.map(row).join('')||(SHED?'':'<p class="small">Nessuna scarpa ancora: aggiungi le tue.</p>')}
+ ${form||'<div class="btns"><button class="btn red" data-sh="new">Aggiungi scarpe</button></div>'}
+ ${old.length?`<details><summary>In pensione (${old.length})</summary>${old.map(row).join('')}</details>`:''}</section>`}
 /* ---------- Backup ---------- */
 function exportBackup(){const data={};for(const c of COLS)data[c]=S[c];data.meta=S.cps;
  const b=new Blob([JSON.stringify({app:'roma27',v:1,exported:new Date().toISOString(),data},null,1)],{type:'application/json'});
@@ -1031,7 +1062,16 @@ function render(){
 
 
 const view=$('#view');
-view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data-d],[data-cp],[data-t],[data-x],[data-add],[data-del],[data-st],[data-bk],[data-more],[data-tm],[data-easy],[data-go],[data-ovw],[data-share],[data-goto]');if(!b)return;
+view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data-d],[data-cp],[data-t],[data-x],[data-add],[data-del],[data-st],[data-bk],[data-more],[data-tm],[data-easy],[data-go],[data-ovw],[data-share],[data-goto],[data-sh]');if(!b)return;
+ if(b.dataset.sh){const a=b.dataset.sh,id=b.dataset.id,x=S.shoes[id];
+  if(a==='new'){SHED={isNew:true,id:'s'+rid(),name:'',start:'',limit:'700',def:!defShoe()};render();document.getElementById('scarpe')?.scrollIntoView();return}
+  if(a==='edit'&&x){SHED={id,name:x.name||'',start:x.start?fnum(x.start):'',limit:String(x.limit||700),def:!!x.def};render();document.getElementById('scarpe')?.scrollIntoView();return}
+  if(a==='cancel'){SHED=null;render();return}
+  if(a==='def'&&x){const o={};for(const [k2,v2] of Object.entries(S.shoes))o[k2]={...v2,def:k2===id};S.shoes=o;persist('shoes');render();toast('Scarpe predefinite cambiate');return}
+  if(a==='retire'&&x){S.shoes={...S.shoes,[id]:{...x,retired:true,def:false}};persist('shoes');render();toast('Messe in pensione');return}
+  if(a==='back'&&x){S.shoes={...S.shoes,[id]:{...x,retired:false}};persist('shoes');render();return}
+  if(a==='del'&&x){if(delArm==='shoe/'+id){delArm=null;await removeDoc('shoes',id)}else{delArm='shoe/'+id;render()}return}
+  return}
  if(b.dataset.goto){const id=b.dataset.goto;const go=()=>{const t=document.getElementById(id);if(t){t.scrollIntoView({block:'start'});if(id==='fitness')window.scrollBy(0,-12)}};if(location.hash==='#progressi')go();else{location.hash='#progressi';setTimeout(go,60)}return}
  if(b.dataset.share){const g=S.gym[b.dataset.share];if(g)shareGym(g);return}
  if(b.dataset.tm){TREAD=b.dataset.tm==='1';lsSet('tread',TREAD?1:0);render();return}
@@ -1067,6 +1107,7 @@ view.addEventListener('click',async e=>{const b=e.target.closest('[data-a],[data
   else if(x==='cancel')ED=null;
   render()}});
 view.addEventListener('input',e=>{const f=e.target.closest('form[data-f]');if(!f)return;
+ if(f.dataset.f==='shoe'&&SHED){const t=e.target;SHED[t.name]=t.type==='checkbox'?t.checked:t.value;return}
  if(f.dataset.f==='tpl'){const el=e.target;if(!ED)return;
   if(el.name==='name')ED.name=el.value;
   else if(el.name==='day')ED.days=[...f.querySelectorAll('[name=day]:checked')].map(c=>+c.value);
@@ -1097,10 +1138,15 @@ view.addEventListener('change',async e=>{
   const data={date:sel,done:cur};S.core={...S.core,[sel]:data};render();await save('core',sel,data,true)}
  const f=e.target.closest('form[data-f]');if(f&&f.dataset.f!=='tpl')storeDraft(f)});
 view.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,el=f.elements,fi=info(sel),inP=inPlan(fi);
+ if(f.dataset.f==='shoe'&&SHED){const name=el.namedItem('name').value.trim().slice(0,40);if(!name){toast('Dai un nome alle scarpe');return}
+  const start=Math.max(0,num(el.namedItem('start').value)||0),limit=Math.min(3000,Math.max(100,Math.round(num(el.namedItem('limit').value)||700))),def=el.namedItem('def').checked,id=SHED.id;
+  const o={...S.shoes};if(def)for(const k2 in o)o[k2]={...o[k2],def:false};o[id]={...(o[id]||{added:todayIso()}),name,start,limit,def,retired:(o[id]||{}).retired||false};S.shoes=o;persist('shoes');
+  const past=el.namedItem('past');if(past&&past.checked){const rs={...S.runs};for(const [d,r] of Object.entries(rs))if(!r.shoe)rs[d]={...r,shoe:id};S.runs=rs;persist('runs')}
+  SHED=null;render();toast('Scarpe salvate');return}
  if(f.dataset.f==='run'){const r0=inP?runFor(fi.w,fi.dow):null,run=r0&&r0.t!=='core'?r0:null,km=num(el.namedItem('km').value);if(km==null){toast('Inserisci i km');return}
   const old=S.runs[sel]||{};
   const data={...old,date:sel,w:inP?fi.w:null,t:run?run.t:'libera',plan:run?run.km:null,km,min:num(el.namedItem('min').value),hr:num(el.namedItem('hr').value),hrmax:num(el.namedItem('hrmax').value),
-   pain:+el.namedItem('pain').value,worse:el.namedItem('worse').checked,flags:[...f.querySelectorAll('[name=flag]:checked')].map(c=>+c.value),note:el.namedItem('note').value.slice(0,600),src:old.src||'manual',ts:Date.now()};
+   pain:+el.namedItem('pain').value,worse:el.namedItem('worse').checked,flags:[...f.querySelectorAll('[name=flag]:checked')].map(c=>+c.value),note:el.namedItem('note').value.slice(0,600),shoe:(el.namedItem('shoe')||{}).value||null,src:old.src||'manual',ts:Date.now()};
   if(await save('runs',sel,data)){delete D[f.dataset.k];render()}return}
  if(f.dataset.f==='rec'){const g=n=>el.namedItem(n),data={...(S.rec[sel]||{}),date:sel,ts:Date.now()};
   for(const n of ['sleep','rhr','hrv','q','en','sore','st']){const x=g(n);if(x)data[n]=num(x.value)}
